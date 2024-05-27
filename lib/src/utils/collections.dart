@@ -26,4 +26,12 @@ extension CollectionExt<T> on List<T> {
     }
     return true;
   }
+
+  bool addIfAll(T e, bool Function(T) predicate) {
+    if(all(predicate)) {
+      add(e);
+      return true;
+    }
+    return false;
+  }
 }

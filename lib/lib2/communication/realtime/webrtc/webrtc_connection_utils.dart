@@ -5,11 +5,13 @@ import 'package:socket_io_client/socket_io_client.dart';
 class WebRtcConnectionUtils {
   WebRtcConnectionUtils._();
 
-  static WebRtcConnection getConnectionFromSocketIo({
+  static WebRtcConnectionManager getConnectionFromSocketIo({
     required Socket socket,
-    required String roomId,
-  }) => WebRtcConnection(
+    required String localId,
+    required String peerId,
+  }) => WebRtcConnectionManager(
     commChannel: SocketIoChannel(socket),
-    roomId: roomId,
+    localId: localId,
+    peerId: peerId,
   );
 }

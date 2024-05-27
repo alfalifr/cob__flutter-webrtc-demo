@@ -2,27 +2,24 @@ import 'dart:developer';
 
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/channel/channels.dart';
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/const.dart';
-import 'package:cob_duplication_flutter_webrtc/src/utils/collections.dart';
 import 'package:cob_duplication_flutter_webrtc/src/utils/maps.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-class WebRtcConnection {
-  //TODO [2024-05-23]: CONTINUE LAST HERE!!! Add stop calling signal.
-  static const String socketEventOfferingOut = "connection_offering_out";
-  static const String socketEventOfferingIn = "connection_offering_in";
-  static const String socketEventOfferingAnswerOut = "connection_offering_answer_out";
-  static const String socketEventOfferingAnswerIn = "connection_offering_answer_in";
-  static const String socketEventIceCandidateOut = "ice_candidate_out";
-  static const String socketEventIceCandidateIn = "ice_candidate_in";
+///
+/// This class represents a peer connection 2 devices, local and remote device.
+///
+class WebRtcConnectionManager {
+  static const String eventSdpOffer = "sdp_offer";
+  static const String eventSdpAnswer = "sdp_answer";
+  static const String eventIceCandidate = "ice_candidate";
+  static const String eventStopCall = "stop_call";
 
-  static const String keyCallerId = "callerId";
-  static const String keyCalleeId = "calleeId";
+  static const String keySenderId = "senderId";
+  static const String keyReceiverId = "receiverId";
   static const String keySdpOffer = "sdpOffer";
   static const String keySdpAnswer = "sdpAnswer";
   static const String keyAcceptCall = "acceptCall";
   static const String keyIceCandidate = "iceCandidate";
-  static const String keySenderId = "senderId";
-  static const String keyReceiverId = "receiverId";
 
   static Map<String, dynamic> _dataForCaller({
     required String callerId,
@@ -42,7 +39,8 @@ class WebRtcConnection {
 
 
   final InOutChannel _commChannel;
-  final String roomId;
+  final String localId;
+  final String peerId;
 
   RTCPeerConnection? _rtcConnection;
 
@@ -62,6 +60,20 @@ class WebRtcConnection {
     }
   }
 
+  void Function()? _onStopCall;
+  set onStopCall(void Function()? l) {
+    _onStopCall = l;
+    _attachOnStopCallListener();
+  }
+  void _attachOnStopCallListener() {
+    _rtcConnection?.onConnectionState = (state) {
+      if(state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+        _onStopCall?.call();
+      }
+    };
+  }
+
+
   void Function(RTCTrackEvent)? _onMediaTrack;
   set onMediaTrack(void Function(RTCTrackEvent)? l) {
     _onMediaTrack = l;
@@ -69,17 +81,18 @@ class WebRtcConnection {
   }
 
 
-  WebRtcConnection({
+  WebRtcConnectionManager({
     required InOutChannel commChannel,
-    required this.roomId,
+    required this.localId,
+    required this.peerId,
   }) : _commChannel = commChannel;
 
 
   /*
    * Offering data format:
    * {
-   *   "callerId" : "...",
-   *   "calleeId" : "...",
+   *   "senderId" : "...",
+   *   "receiverId" : "...",
    *   "sdpOffer" : {
    *     "sdp" : "...",
    *     "type" : "..."
@@ -89,8 +102,8 @@ class WebRtcConnection {
   /*
    * Offering answer data format:
    * {
-   *   "calleeId" : "...",
-   *   "callerId" : "...",
+   *   "senderId" : "...",
+   *   "receiverId" : "...",
    *   "acceptCall" : true,
    *   "sdpAnswer" : {
    *     "sdp" : "...",
@@ -108,6 +121,13 @@ class WebRtcConnection {
    *   }
    * }
    */
+  /*
+   * Stop calling data format:
+   * {
+   *   "senderId" : "...",
+   *   "receiverId" : "...",
+   * }
+   */
 
   Future<void> init() async {
     _rtcConnection = await createPeerConnection(
@@ -123,6 +143,18 @@ class WebRtcConnection {
         }
     )
       ..onTrack = _onMediaTrack
+      ..onAddTrack = (stream, track) {
+        log("=== WebRtcConnection._rtcConnection.onAddTrack() streamId=${stream.id} trackId=${track.id}");
+      }
+      ..onRemoveTrack = (stream, track) {
+        log("=== WebRtcConnection._rtcConnection.onRemoveTrack() streamId=${stream.id} trackId=${track.id}");
+      }
+      ..onAddStream = (stream) {
+        log("=== WebRtcConnection._rtcConnection.onAddStream() streamId=${stream.id}");
+      }
+      ..onRemoveStream = (stream) {
+        log("=== WebRtcConnection._rtcConnection.onRemoveStream() streamId=${stream.id}");
+      }
     ;
 
     if(_remoteSdp != null) {
@@ -134,6 +166,9 @@ class WebRtcConnection {
         _rtcConnection?.addTrack(track, stream);
       });
     }
+
+    _attachOnStopCallListener();
+    _listenToStopCallEvent();
   }
 
   void addMediaTrackFromMediaStream(MediaStream stream) {
@@ -151,19 +186,19 @@ class WebRtcConnection {
    * 2. Setup ICE candidate listener so the newly created local ICE candidate can be caught.
    * 3. Offer the SDP.
    */
-  void doOfferingProcedure(
-      String calleeId, {
+  void doOfferingProcedure({
         Map<String, String>? offeringData,
         void Function(bool callAccepted)? onAnswer,
   }) async {
     _listenForSdpAnswer(onAnswer: (callAccepted) {
       log("=== WebRtcConnection.doOfferingProcedure._listenForSdpAnswer() callAccepted=$callAccepted");
       if(callAccepted) {
-        _sendIceCandidate(calleeId);
+        _sendIceCandidate();
       }
+      onAnswer?.call(callAccepted);
     });
     _setOnIceCandidateListener();
-    await _sdpOffer(calleeId, offeringData: offeringData);
+    await _sdpOffer(offeringData: offeringData);
   }
 
   void prepareAsCallee({void Function(Map<String, dynamic> data)? onOffered}) {
@@ -176,10 +211,7 @@ class WebRtcConnection {
     _stopReceivingIceCandidate();
   }
 
-  Future<void> _sdpOffer(
-      String calleeId,
-      {Map<String, String>? offeringData}
-  ) async {
+  Future<void> _sdpOffer({Map<String, String>? offeringData}) async {
     final offering =
         offeringData != null
             ? RTCSessionDescription(
@@ -194,59 +226,33 @@ class WebRtcConnection {
 
     _commChannel
       .emit(
-        socketEventOfferingOut,
-        _dataForCallee(
-            calleeId: calleeId,
-            data: {
-              keyCallerId : roomId,
-              "sdpOffer" : offering.toMap(),
-            },
-        ),
-      );
-  }
-
-  _listenForSdpAnswer({void Function(bool callAccepted)? onAnswer}) {
-    _commChannel
-      .listen(socketEventOfferingAnswerIn, (data) async {
-        bool callAccepted = data[keyAcceptCall];
-        if(!callAccepted) {
-          onAnswer?.call(callAccepted);
-          return;
+        eventSdpOffer,
+        {
+          keySenderId : localId,
+          keyReceiverId : peerId,
+          "sdpOffer" : offering.toMap(),
         }
-        final sdpAnswer = data[keySdpAnswer];
-        await _rtcConnection!.setRemoteDescription(
-          RTCSessionDescription(
-            sdpAnswer["sdp"],
-            sdpAnswer["type"],
-          ),
-        );
-        onAnswer?.call(callAccepted);
-      });
+      );
   }
 
   _listenForSdpOffer({void Function(Map<String, dynamic> data)? onOffered}) {
     _commChannel
-      .listen(socketEventOfferingIn, (data) async {
-        onOffered?.call(data);
-      });
+        .listen(eventSdpOffer, (data) async {
+      onOffered?.call(data);
+    });
   }
 
-
-
-  Future<void> answerCall(
-      String callerId, {
-        bool acceptCall = true,
-        Map<String, String>? offeringAnswerData,
+  Future<void> answerCall({
+    bool acceptCall = true,
+    Map<String, String>? offeringAnswerData,
   }) => _sdpAnswer(
-      callerId,
-      acceptCall: acceptCall,
-      offeringAnswerData: offeringAnswerData,
+    acceptCall: acceptCall,
+    offeringAnswerData: offeringAnswerData,
   );
 
-  Future<void> _sdpAnswer(
-      String callerId, {
-        bool acceptCall = true,
-        Map<String, String>? offeringAnswerData,
+  Future<void> _sdpAnswer({
+    bool acceptCall = true,
+    Map<String, String>? offeringAnswerData,
   }) async {
     log("=== WebRtcConnection._sdpAnswer() - 1 ===");
 
@@ -268,17 +274,34 @@ class WebRtcConnection {
 
     _commChannel
         .emit(
-            socketEventOfferingAnswerOut,
-            _dataForCaller(
-                callerId: callerId,
-                data: {
-                  keyCalleeId : roomId,
-                  keyAcceptCall : acceptCall,
-                  "sdpAnswer" : answer.toMap(),
-                },
-            ),
+            eventSdpAnswer,
+            {
+              keySenderId : localId,
+              keyReceiverId : peerId,
+              keyAcceptCall : acceptCall,
+              "sdpAnswer" : answer.toMap(),
+            },
         );
     log("=== WebRtcConnection._sdpAnswer() - 4 ===");
+  }
+
+  _listenForSdpAnswer({void Function(bool callAccepted)? onAnswer}) {
+    _commChannel
+        .listen(eventSdpAnswer, (data) async {
+      bool callAccepted = data[keyAcceptCall];
+      if(!callAccepted) {
+        onAnswer?.call(callAccepted);
+        return;
+      }
+      final sdpAnswer = data[keySdpAnswer];
+      await _rtcConnection!.setRemoteDescription(
+        RTCSessionDescription(
+          sdpAnswer["sdp"],
+          sdpAnswer["type"],
+        ),
+      );
+      onAnswer?.call(callAccepted);
+    });
   }
 
   _setOnIceCandidateListener({
@@ -297,15 +320,15 @@ class WebRtcConnection {
     };
   }
 
-  _sendIceCandidate(String roomId, {List<RTCIceCandidate>? iceCandidateList}) {
+  _sendIceCandidate({List<RTCIceCandidate>? iceCandidateList}) {
     log("=== WebRtcConnection._sendIceCandidate() - 1 ===");
     final usedIceCandidateList = iceCandidateList ?? _iceCandidateList;
     for (var iceCandidate in usedIceCandidateList) {
       _commChannel.emit(
-        socketEventIceCandidateOut,
+        eventIceCandidate,
         {
-          keyReceiverId : roomId,
-          keySenderId : this.roomId,
+          keySenderId : localId,
+          keyReceiverId : peerId,
           keyIceCandidate : {
             "id": iceCandidate.sdpMid,
             "label": iceCandidate.sdpMLineIndex,
@@ -317,7 +340,7 @@ class WebRtcConnection {
   }
 
   _receiveIceCandidate() {
-    _commChannel.listen(socketEventIceCandidateIn, (data) {
+    _commChannel.listen(eventIceCandidate, (data) {
       final candidate = data[keyIceCandidate];
       String candidateStr = candidate["candidate"];
       String sdpMid = candidate["id"];
@@ -335,15 +358,35 @@ class WebRtcConnection {
   }
 
   _stopReceivingIceCandidate() {
-    _commChannel.listen(socketEventIceCandidateIn, null);
+    _commChannel.listen(eventIceCandidate, null);
+  }
+
+  stopCall() {
+    _commChannel.emit(
+        eventStopCall,
+        {
+          keySenderId : localId,
+          keyReceiverId : peerId,
+        },
+    );
+  }
+
+  _listenToStopCallEvent() {
+    _commChannel.listen(
+      eventStopCall,
+      (data) {
+        _rtcConnection?.close();
+        //_onStopCall?.call();
+      }
+    );
   }
 
   void dispose() {
     _rtcConnection?.dispose();
     _commChannel
-      ..listen(socketEventOfferingAnswerIn, null)
-      ..listen(socketEventOfferingIn, null)
-      ..listen(socketEventIceCandidateIn, null)
+      ..listen(eventSdpOffer, null)
+      ..listen(eventSdpAnswer, null)
+      ..listen(eventIceCandidate, null)
     ;
   }
 }

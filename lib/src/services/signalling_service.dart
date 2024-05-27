@@ -16,6 +16,10 @@ class SignallingService {
     socket?.on(event, (data) => listener?.call(data));
   }
 
+  void emit(String event, data) {
+    socket?.emit(event, data);
+  }
+
   init({
     required String websocketUrl,
     required String selfCallerID,

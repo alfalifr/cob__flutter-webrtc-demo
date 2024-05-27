@@ -33,8 +33,8 @@ class _JoinScreenState extends State<JoinScreen> {
     super.initState();
 
     // listen for incoming video call
-    SignallingService.instance.on(WebRtcConnection.socketEventOfferingIn, (data) {
-      printFromSocket(WebRtcConnection.socketEventOfferingIn, data);
+    SignallingService.instance.on(WebRtcConnectionManager.eventSdpOffer, (data) {
+      printFromSocket(WebRtcConnectionManager.eventSdpOffer, data);
       if (mounted) {
         // set SDP Offer of incoming call
         setState(() => incomingSDPOffer = data);
@@ -44,16 +44,16 @@ class _JoinScreenState extends State<JoinScreen> {
 
   // join Call
   _joinCall({
-    required String callerId,
-    required String calleeId,
+    required String localId,
+    required String peerId,
     dynamic offer,
   }) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CallScreen2(
-          callerId: callerId,
-          calleeId: calleeId,
+          localId: localId,
+          peerId: peerId,
           offer: offer,
         ),
       ),
@@ -149,8 +149,8 @@ class _JoinScreenState extends State<JoinScreen> {
                       ),
                       onPressed: () {
                         _joinCall(
-                          callerId: selfCallerIdTextEditingController.text,
-                          calleeId: remoteCallerIdTextEditingController.text,
+                          localId: selfCallerIdTextEditingController.text,
+                          peerId: remoteCallerIdTextEditingController.text,
                         );
                       },
                     ),
@@ -168,7 +168,7 @@ class _JoinScreenState extends State<JoinScreen> {
               Positioned(
                 child: ListTile(
                   title: Text(
-                    "Incoming Call from ${incomingSDPOffer["callerId"]}",
+                    "Incoming Call from ${incomingSDPOffer[WebRtcConnectionManager.keySenderId]}",
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -177,6 +177,14 @@ class _JoinScreenState extends State<JoinScreen> {
                         icon: const Icon(Icons.call_end),
                         color: Colors.redAccent,
                         onPressed: () {
+                          SignallingService.instance.emit(
+                              WebRtcConnectionManager.eventSdpAnswer,
+                              {
+                                WebRtcConnectionManager.keySenderId : selfCallerIdTextEditingController.text,
+                                WebRtcConnectionManager.keyReceiverId : incomingSDPOffer[WebRtcConnectionManager.keySenderId]!,
+                                WebRtcConnectionManager.keyAcceptCall : false,
+                              }
+                          );
                           setState(() => incomingSDPOffer = null);
                         },
                       ),
@@ -185,8 +193,8 @@ class _JoinScreenState extends State<JoinScreen> {
                         color: Colors.greenAccent,
                         onPressed: () {
                           _joinCall(
-                            callerId: incomingSDPOffer["callerId"]!,
-                            calleeId: selfCallerIdTextEditingController.text,
+                            localId: selfCallerIdTextEditingController.text,
+                            peerId: incomingSDPOffer[WebRtcConnectionManager.keySenderId]!,
                             offer: incomingSDPOffer["sdpOffer"],
                           );
                         },

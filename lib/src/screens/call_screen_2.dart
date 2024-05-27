@@ -9,13 +9,13 @@ import '../services/signalling_service.dart';
 import '../utils/prints.dart';
 
 class CallScreen2 extends StatefulWidget {
-  final String callerId, calleeId;
+  final String localId, peerId;
   final dynamic offer;
   const CallScreen2({
     super.key,
     this.offer,
-    required this.callerId,
-    required this.calleeId,
+    required this.localId,
+    required this.peerId,
   });
 
   @override
@@ -32,7 +32,7 @@ class _CallScreenState2 extends State<CallScreen2> {
   // videoRenderer for remotePeer
   final _remoteRTCVideoRenderer = RTCVideoRenderer();
 
-  late WebRtcConnection _rtcConnectionManager;
+  late WebRtcConnectionManager _rtcConnectionManager;
 
   // mediaStream for localPeer
   MediaStream? _localStream;
@@ -80,7 +80,8 @@ class _CallScreenState2 extends State<CallScreen2> {
 
     _rtcConnectionManager = WebRtcConnectionUtils.getConnectionFromSocketIo(
       socket: SignallingService.instance.socket!,
-      roomId: widget.callerId,
+      localId: widget.localId,
+      peerId: widget.peerId,
     )
       // add mediaTrack to peerConnection
       ..addMediaTrackFromMediaStream(_localStream!)
@@ -91,6 +92,7 @@ class _CallScreenState2 extends State<CallScreen2> {
         _remoteRTCVideoRenderer.srcObject = event.streams[0];
         setState(() {});
       }
+      ..onStopCall = () => Navigator.pop(context)
     ;
     await _rtcConnectionManager.init();
 
@@ -99,7 +101,6 @@ class _CallScreenState2 extends State<CallScreen2> {
     // Outgoing call
     if(widget.offer == null) {
       _rtcConnectionManager.doOfferingProcedure(
-        widget.calleeId,
         onAnswer: (callAccepted) {
           if(!callAccepted) {
             _leaveCall();
@@ -111,7 +112,7 @@ class _CallScreenState2 extends State<CallScreen2> {
     else {
       _rtcConnectionManager.prepareAsCallee();
       await _rtcConnectionManager.setRemoteSdpFromMap(widget.offer);
-      await _rtcConnectionManager.answerCall(widget.callerId);
+      await _rtcConnectionManager.answerCall(acceptCall: true);
     }
 
     /*
@@ -130,6 +131,7 @@ class _CallScreenState2 extends State<CallScreen2> {
   }
 
   _leaveCall() {
+    _rtcConnectionManager.stopCall();
     Navigator.pop(context);
   }
 
