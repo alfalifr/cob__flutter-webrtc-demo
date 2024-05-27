@@ -5,5 +5,5 @@ abstract class Consts {
   static const String stunServerAddress2 = "stun:stun2.l.google.com:19302";
 
   // signalling server url
-  static const String websocketUrl = "http://192.168.0.125:5500"; //"WEB_SOCKET_SERVER_URL";
+  static const String websocketUrl = "http://192.168.0.127:5500"; //"WEB_SOCKET_SERVER_URL";
 }

@@ -9,13 +9,15 @@ import '../services/signalling_service.dart';
 import '../utils/prints.dart';
 
 class CallScreen2 extends StatefulWidget {
-  final String localId, peerId;
+  final String localId, peerId, localDeviceId;
   final dynamic offer;
+
   const CallScreen2({
     super.key,
     this.offer,
     required this.localId,
     required this.peerId,
+    required this.localDeviceId,
   });
 
   @override
@@ -82,6 +84,7 @@ class _CallScreenState2 extends State<CallScreen2> {
       socket: SignallingService.instance.socket!,
       localId: widget.localId,
       peerId: widget.peerId,
+      localDeviceId: widget.localDeviceId,
     )
       // add mediaTrack to peerConnection
       ..addMediaTrackFromMediaStream(_localStream!)
@@ -89,6 +92,8 @@ class _CallScreenState2 extends State<CallScreen2> {
       // listen for remotePeer mediaTrack event
       ..onMediaTrack = (event) {
         printFromPeerConnection("onTrack", event);
+        printFromPeerConnection("onTrack event.streams", event.streams);
+        printFromPeerConnection("onTrack event.streams.length", event.streams.length);
         _remoteRTCVideoRenderer.srcObject = event.streams[0];
         setState(() {});
       }

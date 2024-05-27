@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'package:cob_duplication_flutter_webrtc/lib2/communication/realtime/webrtc/webrtc_connection.dart';
 import 'package:cob_duplication_flutter_webrtc/src/utils/prints.dart';
 import 'package:socket_io_client/socket_io_client.dart';
 
@@ -27,12 +28,15 @@ class SignallingService {
     void Function(dynamic)? onConnectError,
     void Function(dynamic)? onDisConnect,
   }) {
+    log("SignallingService.init() websocketUrl=$websocketUrl selfCallerID=$selfCallerID");
+
     socket?.dispose();
 
     // init Socket
     socket = io(websocketUrl, {
+      "forceNew": true,
       "transports": ['websocket'],
-      "query": {"callerId": selfCallerID}
+      "query": {WebRtcConnectionManager.keyClientId: selfCallerID},
     });
 
     // listen onConnect event

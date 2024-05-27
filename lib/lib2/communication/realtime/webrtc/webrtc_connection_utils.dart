@@ -9,9 +9,11 @@ class WebRtcConnectionUtils {
     required Socket socket,
     required String localId,
     required String peerId,
+    required String localDeviceId,
   }) => WebRtcConnectionManager(
     commChannel: SocketIoChannel(socket),
     localId: localId,
     peerId: peerId,
+    localDeviceId: localDeviceId,
   );
 }

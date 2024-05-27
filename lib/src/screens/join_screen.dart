@@ -9,8 +9,12 @@ import 'call_screen.dart';
 import 'call_screen_2.dart';
 
 class JoinScreen extends StatefulWidget {
+  final initialClientId;
 
-  const JoinScreen({super.key});
+  const JoinScreen({
+    super.key,
+    required this.initialClientId,
+  });
 
   @override
   State<JoinScreen> createState() => _JoinScreenState();
@@ -22,7 +26,8 @@ class _JoinScreenState extends State<JoinScreen> {
     text: Consts.websocketUrl,
   );
   final remoteCallerIdTextEditingController = TextEditingController();
-  final selfCallerIdTextEditingController = TextEditingController(
+  final selfCallerIdTextEditingController = TextEditingController();
+  final localDeviceIdTextEditingController = TextEditingController(
       text: Random().nextInt(999999).toString().padLeft(6, '0')
   );
 
@@ -31,6 +36,8 @@ class _JoinScreenState extends State<JoinScreen> {
   @override
   void initState() {
     super.initState();
+
+    selfCallerIdTextEditingController.text = widget.initialClientId;
 
     // listen for incoming video call
     SignallingService.instance.on(WebRtcConnectionManager.eventSdpOffer, (data) {
@@ -46,6 +53,7 @@ class _JoinScreenState extends State<JoinScreen> {
   _joinCall({
     required String localId,
     required String peerId,
+    required String localDeviceId,
     dynamic offer,
   }) {
     Navigator.push(
@@ -54,6 +62,7 @@ class _JoinScreenState extends State<JoinScreen> {
         builder: (_) => CallScreen2(
           localId: localId,
           peerId: peerId,
+          localDeviceId: localDeviceId,
           offer: offer,
         ),
       ),
@@ -89,6 +98,20 @@ class _JoinScreenState extends State<JoinScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: localDeviceIdTextEditingController,
+                      readOnly: true,
+                      textAlign: TextAlign.center,
+                      enableInteractiveSelection: true,
+                      decoration: InputDecoration(
+                        labelText: "Your Device ID",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: selfCallerIdTextEditingController,
                       //readOnly: true,
@@ -151,6 +174,7 @@ class _JoinScreenState extends State<JoinScreen> {
                         _joinCall(
                           localId: selfCallerIdTextEditingController.text,
                           peerId: remoteCallerIdTextEditingController.text,
+                          localDeviceId: localDeviceIdTextEditingController.text,
                         );
                       },
                     ),
@@ -180,6 +204,7 @@ class _JoinScreenState extends State<JoinScreen> {
                           SignallingService.instance.emit(
                               WebRtcConnectionManager.eventSdpAnswer,
                               {
+                                WebRtcConnectionManager.keySenderDeviceId : localDeviceIdTextEditingController.text,
                                 WebRtcConnectionManager.keySenderId : selfCallerIdTextEditingController.text,
                                 WebRtcConnectionManager.keyReceiverId : incomingSDPOffer[WebRtcConnectionManager.keySenderId]!,
                                 WebRtcConnectionManager.keyAcceptCall : false,
@@ -195,6 +220,7 @@ class _JoinScreenState extends State<JoinScreen> {
                           _joinCall(
                             localId: selfCallerIdTextEditingController.text,
                             peerId: incomingSDPOffer[WebRtcConnectionManager.keySenderId]!,
+                            localDeviceId: localDeviceIdTextEditingController.text,
                             offer: incomingSDPOffer["sdpOffer"],
                           );
                         },

@@ -14,12 +14,14 @@ class WebRtcConnectionManager {
   static const String eventIceCandidate = "ice_candidate";
   static const String eventStopCall = "stop_call";
 
+  static const String keyClientId = "clientId";
   static const String keySenderId = "senderId";
   static const String keyReceiverId = "receiverId";
   static const String keySdpOffer = "sdpOffer";
   static const String keySdpAnswer = "sdpAnswer";
   static const String keyAcceptCall = "acceptCall";
   static const String keyIceCandidate = "iceCandidate";
+  static const String keySenderDeviceId = "senderDeviceId";
 
   static Map<String, dynamic> _dataForCaller({
     required String callerId,
@@ -41,6 +43,7 @@ class WebRtcConnectionManager {
   final InOutChannel _commChannel;
   final String localId;
   final String peerId;
+  final String localDeviceId;
 
   RTCPeerConnection? _rtcConnection;
 
@@ -85,6 +88,7 @@ class WebRtcConnectionManager {
     required InOutChannel commChannel,
     required this.localId,
     required this.peerId,
+    required this.localDeviceId,
   }) : _commChannel = commChannel;
 
 
@@ -228,6 +232,7 @@ class WebRtcConnectionManager {
       .emit(
         eventSdpOffer,
         {
+          keySenderDeviceId : localDeviceId,
           keySenderId : localId,
           keyReceiverId : peerId,
           "sdpOffer" : offering.toMap(),
@@ -276,6 +281,7 @@ class WebRtcConnectionManager {
         .emit(
             eventSdpAnswer,
             {
+              keySenderDeviceId : localDeviceId,
               keySenderId : localId,
               keyReceiverId : peerId,
               keyAcceptCall : acceptCall,
@@ -286,8 +292,7 @@ class WebRtcConnectionManager {
   }
 
   _listenForSdpAnswer({void Function(bool callAccepted)? onAnswer}) {
-    _commChannel
-        .listen(eventSdpAnswer, (data) async {
+    _commChannel.listen(eventSdpAnswer, (data) async {
       bool callAccepted = data[keyAcceptCall];
       if(!callAccepted) {
         onAnswer?.call(callAccepted);
@@ -327,6 +332,7 @@ class WebRtcConnectionManager {
       _commChannel.emit(
         eventIceCandidate,
         {
+          keySenderDeviceId : localDeviceId,
           keySenderId : localId,
           keyReceiverId : peerId,
           keyIceCandidate : {
@@ -365,6 +371,7 @@ class WebRtcConnectionManager {
     _commChannel.emit(
         eventStopCall,
         {
+          keySenderDeviceId : localDeviceId,
           keySenderId : localId,
           keyReceiverId : peerId,
         },
