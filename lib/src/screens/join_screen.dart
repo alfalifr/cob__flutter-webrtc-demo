@@ -7,6 +7,7 @@ import '../../lib2/communication/const.dart';
 import '../services/signalling_service.dart';
 import 'call_screen.dart';
 import 'call_screen_2.dart';
+import 'call_screen_3_multi.dart';
 
 class JoinScreen extends StatefulWidget {
   final initialClientId;
@@ -59,7 +60,7 @@ class _JoinScreenState extends State<JoinScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CallScreen2(
+        builder: (_) => CallScreen3(
           localId: localId,
           peerId: peerId,
           localDeviceId: localDeviceId,
@@ -152,9 +153,9 @@ class _JoinScreenState extends State<JoinScreen> {
                         SignallingService.instance.init(
                           websocketUrl: signallingServerAddress.text,
                           selfCallerID: selfCallerIdTextEditingController.text,
-                          onConnect: (data) => socketStatusTextController.text = "socket connected!",
-                          onConnectError: (data) => socketStatusTextController.text = "socket connection error!",
-                          onDisConnect: (data) => socketStatusTextController.text = "socket disconnected!",
+                          onConnect: (data) => socketStatusTextController.text = "socket connected! (${selfCallerIdTextEditingController.text})",
+                          onConnectError: (data) => socketStatusTextController.text = "socket connection error! (${selfCallerIdTextEditingController.text})",
+                          onDisConnect: (data) => socketStatusTextController.text = "socket disconnected! (${selfCallerIdTextEditingController.text})",
                         );
                       },
                     ),
