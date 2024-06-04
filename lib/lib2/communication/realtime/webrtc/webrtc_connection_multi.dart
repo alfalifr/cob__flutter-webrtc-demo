@@ -1,6 +1,7 @@
 
 
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/channel/channels.dart';
+import 'package:cob_duplication_flutter_webrtc/lib2/communication/channel/webrtc_channel.dart';
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/const.dart';
 import 'package:cob_duplication_flutter_webrtc/src/utils/collections.dart';
 import 'package:cob_duplication_flutter_webrtc/src/utils/maps.dart';
@@ -34,7 +35,13 @@ class WebRtcConnectionManagerMulti {
   static const String keyForceAccept = "forceAccept"; // TODO: Needs an extra security layer
 
 
-  final InOutChannel _commChannel;
+  WebRtcConnectionManagerMulti({
+    required WebRtcChannel commChannel,
+    required this.localId,
+    required this.localDeviceId,
+  }) : _commChannel = commChannel;
+
+  final WebRtcChannel _commChannel;
   final String localId;
   final String localDeviceId;
 
@@ -167,12 +174,6 @@ class WebRtcConnectionManagerMulti {
     _onOffered = l;
   }
 
-
-  WebRtcConnectionManagerMulti({
-    required InOutChannel commChannel,
-    required this.localId,
-    required this.localDeviceId,
-  }) : _commChannel = commChannel;
 
 
   /*
@@ -515,7 +516,7 @@ class WebRtcConnectionManagerMulti {
 
   void stopBeingCallee() {
     // _listenForSdpOffer(onOffered: null);
-    _commChannel.listen(eventSdpOffer, null);
+    _commChannel.listenSdpOffer(null);
     _stopReceivingIceCandidate();
   }
 
@@ -543,6 +544,13 @@ class WebRtcConnectionManagerMulti {
     log("=== WebRtcConnection._sdpOffer() - 3 === peerId=$peerId offering.toMap()=${offering.toMap()}");
     await connection.setLocalDescription(offering);
     log("=== WebRtcConnection._sdpOffer() - 4 === peerId=$peerId");
+    _commChannel.emitSdpOffer(
+      receiverId: peerId,
+      offer: offering.toMap(),
+      extraData: extraData,
+    );
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.emit(
         eventSdpOffer,
         {
@@ -554,9 +562,20 @@ class WebRtcConnectionManagerMulti {
             keyExtraData : extraData,
         }
       );
+     */
   }
 
   _listenForSdpOffer({void Function(String peerId, Map<String, dynamic> data)? onOffered}) {
+    _commChannel.listenSdpOffer((peerId, sdpOffer, extraData) async {
+      setRemoteSdpFromMap(peerId: peerId, sdpData: sdpOffer);
+      final bool forceAcceptCall = extraData?[keyForceAccept] ?? false;
+      if(forceAcceptCall) {
+        _sdpAnswer(peerId: peerId, acceptCall: true);
+      }
+    });
+
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.listen(eventSdpOffer, (data) async {
       final String peerId = data[keySenderId]; //keySenderDeviceId
       final sdpOffer = data[keySdpOffer];
@@ -567,6 +586,7 @@ class WebRtcConnectionManagerMulti {
       }
       onOffered?.call(peerId, data);
     });
+     */
   }
 
   /// Tells [peerId] to connect to [peerIdListToConnectTo].
@@ -585,6 +605,12 @@ class WebRtcConnectionManagerMulti {
     if(filteredPeerIdListToConnect.isEmpty) {
       return;
     }
+    _commChannel.emitPeerListToConnect(
+        receiverId: peerId,
+        remotePeerIdList: filteredPeerIdListToConnect,
+    );
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.emit(
       eventPeerListToConnect,
       {
@@ -594,26 +620,31 @@ class WebRtcConnectionManagerMulti {
         keyPeerIdList : filteredPeerIdListToConnect,
       }
     );
+     */
   }
 
   _listenForPeerIdListToConnect() {
+    _commChannel.listenPeerListToConnect((senderId, peerIdList) async {
+      log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 2 === peerIdList=$peerIdList");
+      await doOfferingProcedure(
+        peerIdList: peerIdList,
+        offerExtraData: {
+          keyForceAccept : true,
+        },
+        forwardCallToOtherPeers: false,
+      );
+      log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 3 === peerIdList=$peerIdList");
+    });
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.listen(
       eventPeerListToConnect,
       (data) async {
         log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 1 === data=$data");
-        final someList = data[keyPeerIdList];
-        var someFirst = null;
-        try {
-          someFirst = someList[0];
-        } catch(e) {
-          log("=== WebRtcConnection._listenForPeerIdListToConnect.listen.catch() - 1.2 === e=$e");
 
-        }
-
-        log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 2 === someList is List<String> = ${someList is List<String>} someList[0]=$someFirst someList[0] is String = ${someFirst is String}");
         final Iterable<String> peerIdList = (data[keyPeerIdList] as List).map((it) => it.toString());
 
-        log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 3 === peerIdList=$peerIdList");
+        log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 2 === peerIdList=$peerIdList");
         await doOfferingProcedure(
           peerIdList: peerIdList,
           offerExtraData: {
@@ -621,9 +652,10 @@ class WebRtcConnectionManagerMulti {
           },
           forwardCallToOtherPeers: false,
         );
-        log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 4 === peerIdList=$peerIdList");
+        log("=== WebRtcConnection._listenForPeerIdListToConnect.listen() - 3 === peerIdList=$peerIdList");
       }
     );
+     */
   }
 
   Future<void> answerCall({
@@ -666,6 +698,13 @@ class WebRtcConnectionManagerMulti {
     }
     log("=== WebRtcConnection._sdpAnswer() - 3 ===");
 
+    _commChannel.emitSdpAnswer(
+        receiverId: peerId,
+        acceptCall: acceptCall,
+        answer: sdpAnswer?.toMap(),
+    );
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.emit(
       eventSdpAnswer,
       {
@@ -677,11 +716,24 @@ class WebRtcConnectionManagerMulti {
           "sdpAnswer" : sdpAnswer.toMap(),
       },
     );
+     */
     log("=== WebRtcConnection._sdpAnswer() - 4 ===");
   }
 
   _listenForSdpAnswer() {
     log("=== WebRtcConnection._listenForSdpAnswer() - 1 ===");
+    _commChannel.listenSdpAnswer((peerId, callAccepted, sdpAnswer) async {
+      final onAnswer = _onAnswerListeners[peerId];
+      if(!callAccepted) {
+        onAnswer?.call(peerId, callAccepted);
+        return;
+      }
+      //await _initConnection(peerId: peerId, recreate: false);
+      setRemoteSdpFromMap(peerId: peerId, sdpData: sdpAnswer);
+      onAnswer?.call(peerId, callAccepted);
+    });
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.listen(eventSdpAnswer, (data) async {
       log("=== WebRtcConnection._listenForSdpAnswer.listen() - 2 === data=$data");
       bool callAccepted = data[keyAcceptCall];
@@ -699,6 +751,7 @@ class WebRtcConnectionManagerMulti {
       onAnswer?.call(peerId, callAccepted);
       log("=== WebRtcConnection._listenForSdpAnswer.listen() - 5 === data=$data");
     });
+     */
   }
 
   void _attachOnIceCandidateListener({
@@ -727,6 +780,14 @@ class WebRtcConnectionManagerMulti {
     final usedIceCandidateList = iceCandidateList ?? (_localIceCandidateMap[peerId] ??= []);
     log("=== WebRtcConnection._sendIceCandidate() - 2 === peerId=$peerId usedIceCandidateList.length=${usedIceCandidateList.length}");
     for (var iceCandidate in usedIceCandidateList) {
+      _commChannel.emitIceCandidate(
+          receiverId: peerId,
+          id: iceCandidate.sdpMid,
+          label: iceCandidate.sdpMLineIndex?.toString(),
+          candidate: iceCandidate.candidate,
+      );
+      /*
+    // TODO: DELETE COMMENTED CODE!!!
       _commChannel.emit(
         eventIceCandidate,
         {
@@ -740,10 +801,24 @@ class WebRtcConnectionManagerMulti {
           },
         },
       );
+       */
     }
   }
 
   _receiveIceCandidate() {
+    _commChannel.listenIceCandidate((peerId, id, label, candidate) async {
+      final newCandidate = RTCIceCandidate(
+        candidate,
+        id,
+        label != null ? int.parse(label) : null,
+      );
+
+      //(_localIceCandidateMap[peerId] ??= []).add(newCandidate);
+      (await _requireConnection(peerId, createNewIfAbsent: true))
+          .addCandidate(newCandidate);
+    });
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.listen(eventIceCandidate, (data) async {
       log("=== WebRtcConnection._receiveIceCandidate() - 1 ===");
       final peerId = data[keySenderId]; //keySenderDeviceId
@@ -763,13 +838,19 @@ class WebRtcConnectionManagerMulti {
       (await _requireConnection(peerId, createNewIfAbsent: true))
           .addCandidate(newCandidate);
     });
+     */
   }
 
   _stopReceivingIceCandidate() {
-    _commChannel.listen(eventIceCandidate, null);
+    _commChannel.listenIceCandidate(null);
+    // TODO: DELETE COMMENTED CODE!!!
+    //_commChannel.listen(eventIceCandidate, null);
   }
 
   stopCallWithPeer({required String peerId}) {
+    _commChannel.emitStopCall(receiverId: peerId);
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.emit(
         eventStopCall,
         {
@@ -778,6 +859,7 @@ class WebRtcConnectionManagerMulti {
           keyReceiverId : peerId,
         },
     );
+     */
     _stopConnection(peerId: peerId);
   }
 
@@ -794,6 +876,9 @@ class WebRtcConnectionManagerMulti {
   endCall() {
     final registeredPeerIdList = _registeredPeerIdList.toSet();
     for(final peerId in registeredPeerIdList) {
+      _commChannel.emitEndCall(receiverId: peerId, extraData: {WebRtcChannel.keyForceAccept : true});
+      /*
+    // TODO: DELETE COMMENTED CODE!!!
       _commChannel.emit(
         eventEndCall,
         {
@@ -802,6 +887,7 @@ class WebRtcConnectionManagerMulti {
           keyReceiverId : peerId,
         },
       );
+       */
     }
     _disposeConnections();
   }
@@ -816,6 +902,15 @@ class WebRtcConnectionManagerMulti {
   }
 
   _listenToEndCallEvent() {
+    _commChannel.listenEndCall((senderId, extraData) {
+      final bool forceAcceptToEndCall = extraData?[WebRtcChannel.keyForceEnd] ?? false;
+      if(forceAcceptToEndCall) {
+        dispose();
+        _onEndCall?.call();
+      }
+    });
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.listen(
       eventEndCall,
       (data) {
@@ -826,6 +921,7 @@ class WebRtcConnectionManagerMulti {
         }
       }
     );
+     */
   }
 
   _stopConnection({
@@ -845,13 +941,17 @@ class WebRtcConnectionManagerMulti {
   }
 
   _listenToStopCallEvent() {
+    _commChannel.listenStopCall((peerId) {
+      _stopConnection(peerId: peerId);
+    });
+    /*
+    // TODO: DELETE COMMENTED CODE!!!
     _commChannel.listen(
       eventStopCall,
       (data) {
-        final String peerId = data[keySenderId]; //keySenderDeviceId
-        _stopConnection(peerId: peerId);
       }
     );
+     */
   }
 
   /*

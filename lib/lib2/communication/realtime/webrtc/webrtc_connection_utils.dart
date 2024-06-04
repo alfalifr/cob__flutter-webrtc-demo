@@ -1,4 +1,5 @@
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/channel/socket_io_channel.dart';
+import 'package:cob_duplication_flutter_webrtc/lib2/communication/channel/webrtc_channel.dart';
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/realtime/webrtc/webrtc_connection.dart';
 import 'package:cob_duplication_flutter_webrtc/lib2/communication/realtime/webrtc/webrtc_connection_multi.dart';
 import 'package:socket_io_client/socket_io_client.dart';
@@ -23,7 +24,11 @@ class WebRtcConnectionUtils {
     required String localId,
     required String localDeviceId,
   }) => WebRtcConnectionManagerMulti(
-    commChannel: SocketIoChannel(socket),
+    commChannel: WebRtcChannel.fromSocketIo(
+        channel: SocketIoChannel(socket),
+        localDeviceId: localDeviceId,
+        localPeerId: localId,
+    ),
     localId: localId,
     localDeviceId: localDeviceId,
   );

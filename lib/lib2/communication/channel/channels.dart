@@ -5,7 +5,7 @@ abstract class InChannel<T> implements EventChannel {
 }
 
 abstract class OutChannel<T> implements EventChannel {
-  void emit(String event, data);
+  void emit(String event, T data);
 }
 
 abstract class InOutChannel<T> implements InChannel<T>, OutChannel<T> {}
