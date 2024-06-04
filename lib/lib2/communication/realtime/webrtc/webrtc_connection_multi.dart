@@ -13,27 +13,6 @@ import '../../../../src/utils/prints.dart';
 /// This class represents a peer connection 2 devices, local and remote device.
 ///
 class WebRtcConnectionManagerMulti {
-  static const String eventSdpOffer = "sdp_offer";
-  static const String eventSdpAnswer = "sdp_answer";
-  static const String eventIceCandidate = "ice_candidate";
-  /// Stop call with a particular remote peer
-  static const String eventStopCall = "stop_call";
-  /// Instructs to end call for all connected peers
-  static const String eventEndCall = "end_call";
-  static const String eventPeerListToConnect = "peer_list_to_connect";
-
-  static const String keyClientId = "clientId";
-  static const String keySenderId = "senderId";
-  static const String keyReceiverId = "receiverId";
-  static const String keySdpOffer = "sdpOffer";
-  static const String keySdpAnswer = "sdpAnswer";
-  static const String keyAcceptCall = "acceptCall";
-  static const String keyIceCandidate = "iceCandidate";
-  static const String keySenderDeviceId = "senderDeviceId";
-  static const String keyPeerIdList = "peerIdList";
-  static const String keyExtraData = "extraData";
-  static const String keyForceAccept = "forceAccept"; // TODO: Needs an extra security layer
-
 
   WebRtcConnectionManagerMulti({
     required WebRtcChannel commChannel,
@@ -568,7 +547,7 @@ class WebRtcConnectionManagerMulti {
   _listenForSdpOffer({void Function(String peerId, Map<String, dynamic> data)? onOffered}) {
     _commChannel.listenSdpOffer((peerId, sdpOffer, extraData) async {
       setRemoteSdpFromMap(peerId: peerId, sdpData: sdpOffer);
-      final bool forceAcceptCall = extraData?[keyForceAccept] ?? false;
+      final bool forceAcceptCall = extraData?[WebRtcChannel.keyForceAccept] ?? false;
       if(forceAcceptCall) {
         _sdpAnswer(peerId: peerId, acceptCall: true);
       }
@@ -629,7 +608,7 @@ class WebRtcConnectionManagerMulti {
       await doOfferingProcedure(
         peerIdList: peerIdList,
         offerExtraData: {
-          keyForceAccept : true,
+          WebRtcChannel.keyForceAccept : true,
         },
         forwardCallToOtherPeers: false,
       );
@@ -969,9 +948,9 @@ class WebRtcConnectionManagerMulti {
       }
     }
     _commChannel
-      ..listen(eventSdpOffer, null)
-      ..listen(eventSdpAnswer, null)
-      ..listen(eventIceCandidate, null)
+      ..listenSdpOffer(null)
+      ..listenSdpAnswer(null)
+      ..listenIceCandidate(null)
     ;
   }
 }
